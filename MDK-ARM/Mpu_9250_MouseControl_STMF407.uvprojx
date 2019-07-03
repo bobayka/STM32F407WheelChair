@@ -313,7 +313,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>2</Optim>
+            <Optim>3</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>0</OneElfS>
@@ -569,11 +569,6 @@
               <FilePath>..\Src\Magnitometer_Calibration.c</FilePath>
             </File>
             <File>
-              <FileName>Reorientation.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Src\Reorientation.c</FilePath>
-            </File>
-            <File>
               <FileName>AccelAngle.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Src\AccelAngle.c</FilePath>
@@ -642,6 +637,21 @@
               <FileName>RestartI2C1.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Src\RestartI2C1.c</FilePath>
+            </File>
+            <File>
+              <FileName>myError.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\myError.c</FilePath>
+            </File>
+            <File>
+              <FileName>Reorientation.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\Reorientation.c</FilePath>
+            </File>
+            <File>
+              <FileName>switchingControl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\switchingControl.c</FilePath>
             </File>
           </Files>
         </Group>

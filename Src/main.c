@@ -72,7 +72,7 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
-uint8_t switchMode = 0;
+int8_t switchMode = 0;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 MPU6050_GYROResult    IntGyroData;
@@ -170,7 +170,8 @@ int main(void)
 	TIM3->ARR = 2500;
 
 	MPU_Start(GPIOC, GPIO_PIN_0);
-
+	char* msg = "MK connected\r";
+	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	HAL_TIM_Base_Start_IT(&htim2);
 	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_UPDATE);
 
@@ -561,8 +562,13 @@ void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
 	HAL_GPIO_WritePin(GPIOx,GPIO_Pin , GPIO_PIN_SET);
 	HAL_Delay(100);
 	while(Initialize() != HAL_OK) {
-		HAL_I2C_DeInit(&hi2c1); 
-		HAL_I2C_Init(&hi2c1);		
+	myError er = I2C_ClearBusyFlagErratum(&hi2c1, 100);
+		if (er.error != HAL_OK){
+			er = Wrap(er, "cant clear BusyFlag:"); 
+			HAL_UART_Transmit(&huart1, er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
+			free(er.msg.msg);
+			return;	
+		}
 		char* msg = "mpu doesnt connect\r";
 		HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 		HAL_Delay(300);

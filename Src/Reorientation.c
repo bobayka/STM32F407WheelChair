@@ -1,8 +1,7 @@
 #include "Reorientation.h"
 #include "main.h"
 
-volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;
-static float  q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
+float  q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
 
 void Reorientation_by_quaternion (struct Accel* AccData){
   float ax = AccData->x;
@@ -30,30 +29,33 @@ void Reorientation_by_quaternion (struct Accel* AccData){
   AccData->z = z;
 }
 
+float ag, q0g, q1g, q2g, q3g;
 void setReorientationParam(struct Accel const* AccData){
 	float ax = AccData->x;
   float ay = AccData->y;
   float az = AccData->z;
 	float Amplif = sqrt(ax * ax + ay * ay + az * az);
 	float magnitude = sqrt(ax * ax + az * az);
-  static float a = 0;
-
-
-    a = acos(- ay / Amplif);
-    q0 = cos(a/2);
-    q1 = sin(a/2) * az / magnitude;
-    q2 = 0;
-    q3 = -sin(a/2) * ax / magnitude;
-		
-		q0q1 = q0*q1;
-		q0q2 = q0*q2;
-		q0q3 = q0*q3;
-		q1q1 = q1*q1;
-		q1q2 = q1*q2;
-		q1q3 = q1*q3;
-		q2q2 = q2*q2;
-		q2q3 = q2*q3;
-		q3q3 = q3*q3;
+   
+	float a = acos(- ay / Amplif);
+	float q0 = cos(a/2);
+	float q1 = sin(a/2) * az / magnitude;
+	float q2 = 0;
+	float q3 = -sin(a/2) * ax / magnitude;
+	ag = a; 
+	q0g = q0;
+	q1g = q1;
+	q2g = q2;
+	q3g = q3;
+	q0q1 = q0*q1;
+	q0q2 = q0*q2;
+	q0q3 = q0*q3;
+	q1q1 = q1*q1;
+	q1q2 = q1*q2;
+	q1q3 = q1*q3;
+	q2q2 = q2*q2;
+	q2q3 = q2*q3;
+	q3q3 = q3*q3;
 }
 
 

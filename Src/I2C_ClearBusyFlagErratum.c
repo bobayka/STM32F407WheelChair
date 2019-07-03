@@ -30,7 +30,7 @@ uint8_t wait_for_gpio_state_timeout(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO
 
 }
 
-HAL_StatusTypeDef I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t timeout)
+myError I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t timeout)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -50,45 +50,46 @@ HAL_StatusTypeDef I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t t
     HAL_GPIO_Init(I2C1_SDA_GPIO_Port, &GPIO_InitStructure);
 
     // 3. Check SCL and SDA High level in GPIOx_IDR.
-    HAL_GPIO_WritePin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET);		
     HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET);
 
-    if(wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+		if(!wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET, timeout)){
+				return NewError(HAL_TIMEOUT, "SDA pin cant be setted\r");
 		}
-    if(wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+    if(!wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET, timeout)){
+				return NewError(HAL_TIMEOUT, "SCL pin cant be setted\r");
 		}
+   
 
     // 4. Configure the SDA I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR).
     HAL_GPIO_WritePin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_RESET);
 
     // 5. Check SDA Low level in GPIOx_IDR.
-		if(wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_RESET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+		if(!wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_RESET, timeout) ){
+				return NewError(HAL_TIMEOUT, "SDA pin cant be resetted\r");
 		}
 
     // 6. Configure the SCL I/O as General Purpose Output Open-Drain, Low level (Write 0 to GPIOx_ODR).
     HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_RESET);
 
     // 7. Check SCL Low level in GPIOx_IDR.
-    if(wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_RESET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+    if(!wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_RESET, timeout)){
+				return NewError(HAL_TIMEOUT, "SCL pin cant be resetted\r");
 		}
 
     // 8. Configure the SCL I/O as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR).
     HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET);
 
     // 9. Check SCL High level in GPIOx_IDR.
-    if(wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+    if(!wait_for_gpio_state_timeout(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET, timeout)){
+				return NewError(HAL_TIMEOUT, "SCL pin cant be setted\r");
 		}	
     // 10. Configure the SDA I/O as General Purpose Output Open-Drain , High level (Write 1 to GPIOx_ODR).
     HAL_GPIO_WritePin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET);
 
     // 11. Check SDA High level in GPIOx_IDR.
-    if(wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET, timeout) != HAL_OK){
-				return HAL_TIMEOUT;
+    if(!wait_for_gpio_state_timeout(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET, timeout)){
+				return NewError(HAL_TIMEOUT, "SDA pin cant be setted\r");
 		}
     // 12. Configure the SCL and SDA I/Os as Alternate function Open-Drain.
     GPIO_InitStructure.Mode = GPIO_MODE_AF_OD;
@@ -115,5 +116,5 @@ HAL_StatusTypeDef I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t t
     // Call initialization function.
     HAL_I2C_Init(handle);
 		
-		return HAL_OK;
+		return NewError(HAL_OK, "");
 }

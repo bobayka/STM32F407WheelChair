@@ -2,10 +2,9 @@
 
 
 void RestartI2C1(I2C_HandleTypeDef *hi2c){
-	__HAL_RCC_I2C1_CLK_ENABLE();
-	HAL_Delay(100);
+		HAL_I2C_DeInit(hi2c); 
 	__HAL_RCC_I2C1_FORCE_RESET();
-	HAL_Delay(100);
 	__HAL_RCC_I2C1_RELEASE_RESET();
-	HAL_Delay(100);
+	__HAL_RCC_I2C1_CLK_DISABLE();
+	HAL_I2C_Init(hi2c);
 }

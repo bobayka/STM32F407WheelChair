@@ -36,16 +36,19 @@
 #include "stm32f4xx_it.h"
 
 /* USER CODE BEGIN 0 */
+#include <string.h> /* memset */
+#include "stdio.h"
 #include "Reorientation.h"  
-#include "Magnitometer_Calibration.h"
+//#include "Magnitometer_Calibration.h"
 #include "AccelAngle.h"
 #include "KalmanFilter.h"
 #include "complimentaryfilter.h"
 #include "Heading.h"
-#include "MouseControl.h"
+//#include "MouseControl.h"
 #include "Wheelchair.h"
 #include "I2C_ClearBusyFlagErratum.h"
 #include "RestartI2C1.h"
+#include "switchingControl.h"
 
 #define CURSOR_STEP 1
 
@@ -63,9 +66,8 @@ struct Finish finish;
 struct AccelAngle accelAngle;
 float magnet_Y_Angle;
 uint16_t ADC_data[2];
-extern uint8_t switchMode;
+extern int8_t switchMode;
 
-void checkStopStartCondition(DAC_HandleTypeDef* hdac, int16_t sensLEFT);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -267,16 +269,14 @@ void TIM2_IRQHandler(void)
 				
         
         GetRawGyro(&IntGyroData);// Get three projections of the gyroscope
-				int error = GetRawAcc(&IntAccData);
-				if ( error == HAL_BUSY){// Get three projections of the accelerometer
-					HAL_I2C_DeInit(&hi2c1); 
-					HAL_I2C_Init(&hi2c1);
-					RestartI2C1(&hi2c1);
-					stopWheelchair(&hdac);
-					char* msg = "hal busy error\r";
-					HAL_UART_Transmit(&huart1, msg, strlen(msg), HAL_MAX_DELAY);
-					return;						
-				} 
+				int status = GetRawAcc(&IntAccData);
+				if (status != HAL_OK){
+					stopWheelchair(&hdac);				
+					myError err = I2CErrorHandling(&hi2c1, status);
+					err = Wrap(err, "I2CErrorHandling: "); 
+					HAL_UART_Transmit(&huart1, err.msg.msg, err.msg.size, HAL_MAX_DELAY);
+					return;
+				}
 //        ReadStatusReg (&Status);//Get a status bit of magnetometer
 //        
 //        if(Status.Data_Ready & 0x01){// Interrogation of the status bit of the Magnetometer(If the bit is set, then read the data, and return the sensor to the single mode (see Datasheet on AK8963 6.4.2.)) 
@@ -297,7 +297,7 @@ void TIM2_IRQHandler(void)
 //        finish.magnData.x = y;
 //        finish.magnData.y = x;
 //        finish.magnData.z = - finish.magnData.z;
-     
+     // learn reset interrupt
         
         finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
 				finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
@@ -307,9 +307,10 @@ void TIM2_IRQHandler(void)
 				finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
 				finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
         
-        Reorientation_by_quaternion (&finish.accelData);
+				checkStopStartCondition(&hdac, 140, &finish);
 				
-				checkStopStartCondition(&hdac, 140);
+        Reorientation_by_quaternion (&finish.accelData);
+								
         //--------------------------------------------------------------------------- 
 				float t;				
 				t = convertTempData(IntAccData.Temperature);// The value of temperature
@@ -326,7 +327,7 @@ void TIM2_IRQHandler(void)
 //				Final(&finangl.rotate.y, finish.gyroData.y, &Kalman.Kf_Magn.state, 0.96f, 0.02);
        //------------------------------------------------------------------------
 				
-				if(switchMode){
+				if(switchMode == RemoteOFF ){
 					Wheelchair(ADC_data,&finangl, 13, 3);
 				}
 				HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
@@ -409,8 +410,8 @@ void TIM4_IRQHandler(void)
 				KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z);
 				
 				//---------------------AnglesAfterAllFilter---------------------------------------
-				Final(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels
-				Final(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.98f, 0.005);// final angels
+				complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels
+				complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.98f, 0.005);// final angels
 				
 				}
     } 
@@ -432,18 +433,7 @@ void OTG_FS_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-void checkStopStartCondition(DAC_HandleTypeDef* hdac,int16_t sensLEFT){
-	static uint32_t tickBut=0;
-	if (finish.gyroData.y < -sensLEFT && HAL_GetTick() - tickBut >= 250){
-		tickBut = HAL_GetTick();
-		if(!switchMode){
-			stopWheelchair(hdac);
-			HAL_Delay(3000);
-			setReorientationParam(&finish.accelData);
-		}
-		switchMode = ~switchMode;
-  }
-}
+
 float convertAccData(int16_t acc) {
 	float f_acc = ((float) (acc * 2.0f) / 32768.0f);
 	return f_acc;
