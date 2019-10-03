@@ -213,8 +213,11 @@ HAL_StatusTypeDef ReadBits(uint8_t slaveAddr, uint8_t regAddr, uint8_t bitStart,
 HAL_StatusTypeDef I2C_ByteWrite(uint8_t slaveAddr, uint8_t* pBuffer,
 		uint8_t writeAddr) {
 	/*Write data to MPU6050's internal memory*/
-	return HAL_I2C_Mem_Write(&hi2c1, (uint16_t) slaveAddr, (uint16_t) writeAddr,
+  HAL_I2C_Mem_Write(&hi2c1, (uint16_t) slaveAddr, (uint16_t) writeAddr,
 	I2C_MEMADD_SIZE_8BIT, pBuffer, 1, MPU6050_I2C_TIMEOUTLEN);
+	if(HAL_I2C_IsDeviceReady(&hi2c1, slaveAddr, 3, MPU6050_I2C_TIMEOUTLEN) != HAL_OK){
+		return HAL_ERROR;
+	}
 }
 
 HAL_StatusTypeDef I2C_BufferRead(uint8_t slaveAddr, uint8_t* pBuffer,

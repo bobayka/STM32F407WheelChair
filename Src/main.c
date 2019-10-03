@@ -54,7 +54,7 @@
 /* USER CODE BEGIN Includes */
 #include "MPU6050.h"
 #include "I2C_ClearBusyFlagErratum.h"
-
+#define PWMPULSE 10
 
 /* USER CODE END Includes */
 
@@ -94,6 +94,8 @@ static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
 //static void GPIO_reset(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
 static void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 
@@ -133,7 +135,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USB_DEVICE_Init();
+//  MX_USB_DEVICE_Init();
   MX_I2C1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -142,9 +144,14 @@ int main(void)
   MX_DAC_Init();
   MX_TIM4_Init();
 	MX_USART1_UART_Init();
-
 	
-	HAL_TIM_Base_Start(&htim3);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_3);
+	__HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, PWMPULSE);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);	
+	
+//	HAL_TIM_Base_Start(&htim3);
 	HAL_DAC_Start(&hdac , DAC_CHANNEL_1);
 	HAL_DAC_Start(&hdac , DAC_CHANNEL_2);
 	HAL_ADC_Start(&hadc1); 
@@ -177,9 +184,6 @@ int main(void)
 
 	HAL_TIM_Base_Start_IT(&htim4);
 	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_UPDATE);	
-
-
-	
 
 	switchMode = RemoteON;
   while (1)
@@ -432,16 +436,18 @@ static void MX_TIM2_Init(void)//APB1 72Mhz  50Hz
 }
 
 /* TIM3 init function */
-static void MX_TIM3_Init(void)//APB172MHz
-{															// = 30Hz
+static void MX_TIM3_Init(void)
+{
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_IC_InitTypeDef sConfigIC;
+  TIM_OC_InitTypeDef sConfigOC;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 2400;
+  htim3.Init.Prescaler = 84;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 999;
+  htim3.Init.Period = 60000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
@@ -454,14 +460,55 @@ static void MX_TIM3_Init(void)//APB172MHz
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  if (HAL_TIM_IC_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
 
-}
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 2;
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim3);
+
+}	
 
 /* TIM4 init function */
 static void MX_TIM4_Init(void)// 200 Mhz
@@ -552,7 +599,7 @@ void _Error_Handler(char *file, int line)
 }
 
 void GPIO_reset(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
-		HAL_GPIO_WritePin(GPIOx, GPIO_Pin,GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_RESET);
 		HAL_Delay(200);
 		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET); 
 		HAL_Delay(200);
@@ -566,7 +613,6 @@ void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
 		if (er.error != HAL_OK){
 			er = Wrap(er, "cant clear BusyFlag:"); 
 			HAL_UART_Transmit(&huart1, er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
-			free(er.msg.msg);
 			return;	
 		}
 		char* msg = "mpu doesnt connect\r";

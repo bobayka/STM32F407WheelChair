@@ -49,6 +49,8 @@
 #include "I2C_ClearBusyFlagErratum.h"
 #include "RestartI2C1.h"
 #include "switchingControl.h"
+#include "HC-SR04.h"
+
 
 #define CURSOR_STEP 1
 
@@ -277,26 +279,7 @@ void TIM2_IRQHandler(void)
 					HAL_UART_Transmit(&huart1, err.msg.msg, err.msg.size, HAL_MAX_DELAY);
 					return;
 				}
-//        ReadStatusReg (&Status);//Get a status bit of magnetometer
-//        
-//        if(Status.Data_Ready & 0x01){// Interrogation of the status bit of the Magnetometer(If the bit is set, then read the data, and return the sensor to the single mode (see Datasheet on AK8963 6.4.2.)) 
-//          GetRawMagnet(&IntMagnetData);//read the data
-//          WriteBits(AK8963_I2C_ADDR, AK8963_CNTL1,7, 8, 0x11) ;//return the sensor to the single mode
-//        }
-//        
-//        finish.magnData.x = convertMagnetData(IntMagnetData.Magnet_X)*((float)(MagnetSens.ASAX-128)/256.0f+1.0f)*4912.0f / 32760.0f;// Data calibrated by the sensor itself
-//        finish.magnData.y = convertMagnetData(IntMagnetData.Magnet_Y)*((float)(MagnetSens.ASAY-128)/256.0f+1.0f)*4912.0f / 32760.0f;
-//        finish.magnData.z = convertMagnetData(IntMagnetData.Magnet_Z)*((float)(MagnetSens.ASAZ-128)/256.0f+1.0f)*4912.0f / 32760.0f;
-//        
-//        //Magnitometer_Calibration (&finish.magnData);
-//        finish.magnData.x = koefx *(finish.magnData.x + xmOffset);
-//        finish.magnData.y = koefy *(finish.magnData.y + ymOffset);
-//        finish.magnData.z = koefz *(finish.magnData.z + zmOffset);
-//        //rotation of the coordinate system of the magnetometer into the coordinate system of the accelerometer
-//        float x = finish.magnData.x, y = finish.magnData.y;
-//        finish.magnData.x = y;
-//        finish.magnData.y = x;
-//        finish.magnData.z = - finish.magnData.z;
+
      // learn reset interrupt
         
         finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
@@ -318,13 +301,6 @@ void TIM2_IRQHandler(void)
         accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
         accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
         accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
-       
-				//--------------------Heading-----------------------------------------------------
-//        Heading(&accelAngle, &finish.magnData);
-//       // Reorientation_by_quaternion (&mx, &my, &mz);//функцию нужно доработать
-//        getMagnetAngles(&finish.magnData, &magnet_Y_Angle);  				
-//				KalmanFilterSimple1D(magnet_Y_Angle,&Kalman.Kf_Magn); 
-//				Final(&finangl.rotate.y, finish.gyroData.y, &Kalman.Kf_Magn.state, 0.96f, 0.02);
        //------------------------------------------------------------------------
 				
 				if(switchMode == RemoteOFF ){
@@ -375,19 +351,21 @@ void USART1_IRQHandler(void)
 /**
 * @brief This function handles TIM3 global interrupt.
 */
+float distance1 = 0, distance2 = 0;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-
+	static struct RangingModule frontModule1 = {{GPIOA, GPIO_PIN_6, GPIO_PIN_RESET}, {TIM_CHANNEL_1, 0, 0}, 0.0};
+	static struct RangingModule frontModule2 = {{GPIOA, GPIO_PIN_7, GPIO_PIN_RESET}, {TIM_CHANNEL_2, 0, 0}, 0.0};
+	
   /* USER CODE END TIM3_IRQn 0 */
- // HAL_TIM_IRQHandler(&htim3);
+  HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
-	if (__HAL_TIM_GET_FLAG(&htim3, TIM_FLAG_UPDATE) != RESET) {
-		if (__HAL_TIM_GET_IT_SOURCE(&htim3, TIM_IT_UPDATE) != RESET) {
-			__HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
-			
-      }
-    } 
+	
+	distanceMeasurement(&htim3, &frontModule1);
+	distanceMeasurement(&htim3, &frontModule2);
+	distance1 = frontModule1.Distance;
+	distance2 = frontModule2.Distance;
   /* USER CODE END TIM3_IRQn 1 */
 }
 
