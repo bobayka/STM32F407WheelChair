@@ -1,5 +1,6 @@
 
 #include "MPU6050.h"
+#include "myError.h"
 extern MPU6050_SensMAGNETResult MagnetSens;
 HAL_StatusTypeDef GetRawAcc(MPU6050_ACCResult *result) 
 {
@@ -93,43 +94,44 @@ HAL_StatusTypeDef GetSensivityMagnet(MPU6050_SensMAGNETResult *result)
 
 HAL_StatusTypeDef Initialize() {
 	HAL_StatusTypeDef result = SetClockSource(MPU6050_CLOCK_INTERNAL);
-	if (result == HAL_OK) {
-		result = SetFullScaleAccelRange(MPU6050_GYRO_FS_250);
-		if (result == HAL_OK) {
-			result = SetFullScaleGyroRange(MPU6050_ACCEL_FS_2);
-			if (result == HAL_OK) {
-        result= WriteBits(MPU6050_DEFAULT_ADDRESS , MPU6050_RA_INT_PIN_CFG,7, 8, 0x02);//By Pass disable				
-        if (result == HAL_OK) {
-          result = SetSleepModeStatus(DISABLE); /*Take chip off sleepmode*/           
-          if (result == HAL_OK) {
-            result = SetBandwidthAccel(MPU6050_DLPF_BW_5);            
-            if (result == HAL_OK) {
-              result = SetBandwidthGyro(MPU6050_DLPF_BW_5);
-              if (result == HAL_OK) {
-//                result= WriteBits(AK8963_I2C_ADDR, AK8963_CNTL1,7, 8, 0);//magnetometr Записываю все 0 ,для Power-down mode
-//                if (result == HAL_OK) {
-                  result= WriteBits(AK8963_I2C_ADDR, AK8963_CNTL2,7, 8, AK8963_RESET);
-                  HAL_Delay(1);
-                  if (result == HAL_OK) {
-                    result= WriteBits(AK8963_I2C_ADDR, AK8963_CNTL1,7, 8, 0x0F);
-                    if (result == HAL_OK) {
-                      result=GetSensivityMagnet(&MagnetSens);                     
-                      if (result == HAL_OK) {
-                        result= WriteBits(AK8963_I2C_ADDR, AK8963_CNTL1,7, 8, 0x11);
-                        return result; //return our result                  
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-			}
-		}
-	
-	return result;
+	if (result != HAL_OK) 
+		return result; 
+	result = SetFullScaleAccelRange(MPU6050_GYRO_FS_250);
+	if (result != HAL_OK) 
+		return result;
+	result = SetFullScaleGyroRange(MPU6050_ACCEL_FS_2);
+	if (result != HAL_OK)
+		return result;
+	result = WriteBits(MPU6050_DEFAULT_ADDRESS , MPU6050_RA_INT_PIN_CFG,7, 8, 0x02);//By Pass disable				
+	if (result != HAL_OK) 
+		return result;
+	result = SetSleepModeStatus(DISABLE); /*Take chip off sleepmode*/           
+	if (result != HAL_OK) 
+		return result;
+	result = SetBandwidthAccel(MPU6050_DLPF_BW_5);            
+	if (result != HAL_OK) 
+		return result;
+	result = SetBandwidthGyro(MPU6050_DLPF_BW_5);
+	if (result != HAL_OK)
+		return result;
+	return HAL_OK;
 }
+
+void try_start_mpu(UART_HandleTypeDef *huart, I2C_HandleTypeDef *hi2c){
+	#include "I2C_ClearBusyFlagErratum.h"
+	while(Initialize() != HAL_OK) {
+	myError er = I2C_ClearBusyFlagErratum(hi2c, 100);
+	if (er.error != HAL_OK){
+		er = Wrap(er, "cant clear BusyFlag:");
+		HAL_UART_Transmit(huart, er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
+		return;
+	}
+	char* msg = "mpu doesnt connect\r";
+	HAL_UART_Transmit(&huart, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	HAL_Delay(300);
+	}       
+}
+
 
 HAL_StatusTypeDef SetBandwidthGyro(uint8_t source) {
 	return WriteBits(MPU6050_DEFAULT_ADDRESS, MPU6050_RA_CONFIG,

@@ -249,7 +249,6 @@
   */    
 #define I2C_TIMEOUT_FLAG          35U         /*!< Timeout 35 ms             */
 #define I2C_TIMEOUT_BUSY_FLAG     25U         /*!< Timeout 25 ms             */
-
 #define I2C_NO_OPTION_FRAME       0xFFFF0000U /*!< XferOptions default value */
 
 /* Private define for @ref PreviousState usage */
@@ -5228,38 +5227,27 @@ static void I2C_DMAAbort(DMA_HandleTypeDef *hdma)
   * @param  Tickstart Tick start value
   * @retval HAL status
   */
-
-
 static HAL_StatusTypeDef I2C_WaitOnFlagUntilTimeout(I2C_HandleTypeDef *hi2c, uint32_t Flag, FlagStatus Status, uint32_t Timeout, uint32_t Tickstart)
 {
-
-
-
-
   /* Wait until flag is set */
   while((__HAL_I2C_GET_FLAG(hi2c, Flag) ? SET : RESET) == Status) 
   {
-
-
     /* Check for the Timeout */
     if(Timeout != HAL_MAX_DELAY)
-    {				
-				if((Timeout == 0U)||((HAL_GetTick() - Tickstart ) > Timeout))
-				{
-						hi2c->PreviousState = I2C_STATE_NONE;
-						hi2c->State= HAL_I2C_STATE_READY;
-						hi2c->Mode = HAL_I2C_MODE_NONE;
-						hi2c->Instance->CR1 |= I2C_CR1_STOP;
-				
-				
-				/* Process Unlocked */
-				__HAL_UNLOCK(hi2c);
-				
-				return HAL_TIMEOUT;
-				}
-    }	
-   
-	}
+    {
+      if((Timeout == 0U)||((HAL_GetTick() - Tickstart ) > Timeout))
+      {
+        hi2c->PreviousState = I2C_STATE_NONE;
+        hi2c->State= HAL_I2C_STATE_READY;
+        hi2c->Mode = HAL_I2C_MODE_NONE;
+
+        /* Process Unlocked */
+        __HAL_UNLOCK(hi2c);
+        
+        return HAL_TIMEOUT;
+      }
+    }
+  }
   
   return HAL_OK;
 }

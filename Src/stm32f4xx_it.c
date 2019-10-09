@@ -4,7 +4,7 @@
   * @brief   Interrupt Service Routines.
   ******************************************************************************
   *
-  * COPYRIGHT(c) 2018 STMicroelectronics
+  * COPYRIGHT(c) 2019 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -74,14 +74,11 @@ extern int8_t switchMode;
 
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
-extern DAC_HandleTypeDef hdac;
 extern ADC_HandleTypeDef hadc1;
-extern ADC_HandleTypeDef hadc3;	
+extern ADC_HandleTypeDef hadc3;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
-extern UART_HandleTypeDef huart1;
-
 
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
@@ -263,7 +260,7 @@ void TIM2_IRQHandler(void)
   /* USER CODE BEGIN TIM2_IRQn 0 */
 
   /* USER CODE END TIM2_IRQn 0 */
-  //HAL_TIM_IRQHandler(&htim2);
+  HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
 		if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE) != RESET) {
 		if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE) != RESET) {
@@ -316,42 +313,8 @@ void TIM2_IRQHandler(void)
 }
 
 /**
-* @brief This function handles USART1 global interrupt.
-*/
-uint8_t azimuth[10];
-static uint8_t rx_counter = 0;
-uint8_t buffer[10];
-void USART1_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART1_IRQn 0 */
-
-  /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
-  /* USER CODE BEGIN USART1_IRQn 1 */
-	if(huart1.Instance == USART1){
-		
-		buffer[rx_counter] = huart1.Instance->DR;
-		
-		if (rx_counter > sizeof(buffer)){
-			//printf("Can't find "\r" symbol in message")
-			memset(buffer, 0, sizeof(buffer)*sizeof(uint8_t));
-			return;
-		}
-		if(buffer[rx_counter] == '\r'){
-			memset(azimuth, 0, sizeof(buffer)*sizeof(uint8_t));
-			memcpy(azimuth, buffer, rx_counter);
-			memset(buffer, 0, sizeof(buffer)*sizeof(uint8_t));
-			rx_counter = 0;
-			return;
-		}
-		rx_counter++;
-	}
-  /* USER CODE END USART1_IRQn 1 */
-}
-/**
 * @brief This function handles TIM3 global interrupt.
 */
-float distance1 = 0, distance2 = 0;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
@@ -377,7 +340,7 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 0 */
 
   /* USER CODE END TIM4_IRQn 0 */
-  //HAL_TIM_IRQHandler(&htim4);
+  HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
 		if (__HAL_TIM_GET_FLAG(&htim4, TIM_FLAG_UPDATE) != RESET) {
 			if (__HAL_TIM_GET_IT_SOURCE(&htim4, TIM_IT_UPDATE) != RESET) {

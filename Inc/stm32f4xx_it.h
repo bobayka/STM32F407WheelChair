@@ -4,7 +4,7 @@
   * @brief   This file contains the headers of the interrupt handlers.
   ******************************************************************************
   *
-  * COPYRIGHT(c) 2018 STMicroelectronics
+  * COPYRIGHT(c) 2019 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -41,26 +41,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
-//#include "main.h"
-#include "MPU6050.h"
+#include "main.h"
 /* Exported types ------------------------------------------------------------*/
-   
 /* Exported constants --------------------------------------------------------*/
-#define koefx  1.38492775f
-#define koefy  1.41721165f
-#define koefz  1.23437667f
-#define xmOffset  -1.52340317f//39.51887003f
-#define ymOffset  0.982509613f
-#define zmOffset  34.066597f
-   
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
-float convertAccData(int16_t acc);
-float convertGyroData(int16_t gyro);
-float getLength(float ax, float ay, float az);
-float convertTempData(int16_t temp);
-float convertMagnetData(uint16_t magn);
-   
+
 void NMI_Handler(void);
 void HardFault_Handler(void);
 void MemManage_Handler(void);
@@ -70,10 +56,11 @@ void SVC_Handler(void);
 void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
-void TIM1_UP_TIM10_IRQHandler(void);
+void ADC_IRQHandler(void);
+void TIM2_IRQHandler(void);
+void TIM3_IRQHandler(void);
+void TIM4_IRQHandler(void);
 void OTG_FS_IRQHandler(void);
-
-
 
 #ifdef __cplusplus
 }
