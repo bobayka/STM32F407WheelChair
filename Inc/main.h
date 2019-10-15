@@ -68,12 +68,9 @@
 
 /* USER CODE BEGIN Private defines */
 #define Pi 3.14159265358979323846f
-
-
-
-//#define ALPHA  0.9f//0,96
-//#define dt      0.001f
-
+#define TIM2_freq	50hz
+#define TIM3_tim	60ms
+#define TIM4_freq 200hz
 
 struct Accel
 {

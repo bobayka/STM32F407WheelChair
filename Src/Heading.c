@@ -1,5 +1,5 @@
 #include "Heading.h"
-
+#include "math.h"
 
 
 void Heading(struct AccelAngle const* finangl, struct Magnet* magnData){

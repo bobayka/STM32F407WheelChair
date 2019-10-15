@@ -6,6 +6,6 @@
 #include "myError.h"
 
 myError I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t timeout);
-
+myError _I2cFailRecover();
 #endif
 

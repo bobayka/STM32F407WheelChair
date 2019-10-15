@@ -1,6 +1,9 @@
 
 #include "MPU6050.h"
 #include "myError.h"
+
+
+extern I2C_HandleTypeDef hi2c1;
 extern MPU6050_SensMAGNETResult MagnetSens;
 HAL_StatusTypeDef GetRawAcc(MPU6050_ACCResult *result) 
 {
@@ -119,15 +122,16 @@ HAL_StatusTypeDef Initialize() {
 
 void try_start_mpu(UART_HandleTypeDef *huart, I2C_HandleTypeDef *hi2c){
 	#include "I2C_ClearBusyFlagErratum.h"
+	#include <string.h>
 	while(Initialize() != HAL_OK) {
 	myError er = I2C_ClearBusyFlagErratum(hi2c, 100);
 	if (er.error != HAL_OK){
 		er = Wrap(er, "cant clear BusyFlag:");
-		HAL_UART_Transmit(huart, er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
+		HAL_UART_Transmit(huart, (uint8_t*)er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
 		return;
 	}
 	char* msg = "mpu doesnt connect\r";
-	HAL_UART_Transmit(&huart, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	HAL_UART_Transmit(huart, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	HAL_Delay(300);
 	}       
 }
@@ -220,6 +224,7 @@ HAL_StatusTypeDef I2C_ByteWrite(uint8_t slaveAddr, uint8_t* pBuffer,
 	if(HAL_I2C_IsDeviceReady(&hi2c1, slaveAddr, 3, MPU6050_I2C_TIMEOUTLEN) != HAL_OK){
 		return HAL_ERROR;
 	}
+	return HAL_OK;
 }
 
 HAL_StatusTypeDef I2C_BufferRead(uint8_t slaveAddr, uint8_t* pBuffer,

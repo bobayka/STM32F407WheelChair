@@ -50,6 +50,7 @@
 #include "RestartI2C1.h"
 #include "switchingControl.h"
 #include "HC-SR04.h"
+#include "MPU6050.h"
 
 
 #define CURSOR_STEP 1
@@ -62,6 +63,10 @@ extern MPU6050_MAGNETResult  IntMagnetData;
 extern MPU6050_StatusReg     Status;
 MPU6050_SensMAGNETResult MagnetSens;
 
+struct RangingModule frontModule1 = {{GPIOA, GPIO_PIN_6, GPIO_PIN_RESET}, {TIM_CHANNEL_1, 0, 0}, 0.0};
+struct RangingModule frontModule2 = {{GPIOA, GPIO_PIN_7, GPIO_PIN_RESET}, {TIM_CHANNEL_2, 0, 0}, 0.0};
+KalmanFilter HC_SR04_Kf_Module1;
+	
 struct Kfilterforaxis Kalman = {0};// change on static
 struct FinishAngle finangl;
 struct Finish finish;
@@ -70,6 +75,13 @@ float magnet_Y_Angle;
 uint16_t ADC_data[2];
 extern int8_t switchMode;
 
+extern DAC_HandleTypeDef hdac;
+extern UART_HandleTypeDef huart1;
+extern I2C_HandleTypeDef hi2c1;
+
+float convertAccData(int16_t acc);
+float convertGyroData(int16_t gyro);
+float convertTempData(int16_t temp);
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -262,73 +274,67 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-		if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE) != RESET) {
-		if (__HAL_TIM_GET_IT_SOURCE(&htim2, TIM_IT_UPDATE) != RESET) {
-			__HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);      
-				
-        
-        GetRawGyro(&IntGyroData);// Get three projections of the gyroscope
-				int status = GetRawAcc(&IntAccData);
-				if (status != HAL_OK){
-					stopWheelchair(&hdac);				
-					myError err = I2CErrorHandling(&hi2c1, status);
-					err = Wrap(err, "I2CErrorHandling: "); 
-					HAL_UART_Transmit(&huart1, err.msg.msg, err.msg.size, HAL_MAX_DELAY);
-					return;
-				}
+	GetRawGyro(&IntGyroData);// Get three projections of the gyroscope
+	int status = GetRawAcc(&IntAccData);
+	if (status != HAL_OK){
+		stopWheelchair(&hdac);				
+		myError err = I2CErrorHandling(&hi2c1, status);
+		err = Wrap(err, "I2CErrorHandling: "); 
+		HAL_UART_Transmit(&huart1, (uint8_t*)err.msg.msg, err.msg.size, HAL_MAX_DELAY);
+		return;
+	}
+	// learn reset interrupt
 
-     // learn reset interrupt
+	finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
+	finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
+	finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
+	//-------------------------------------------------------------------------        
+	finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
+	finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
+	finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
+
+	checkStopStartCondition(&hdac, 140, &finish);
+
+	Reorientation_by_quaternion (&finish.accelData);
+					
+	//--------------------------------------------------------------------------- 
+	float t;				
+	t = convertTempData(IntAccData.Temperature);// The value of temperature
+	//------------------------------GetAccelAngles-------------------------------------
+	accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
+	accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
+	accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
+	//------------------------------------------------------------------------
+
+	if(switchMode == RemoteOFF ){
+		Wheelchair(ADC_data,&finangl, 13, 3);
+	}
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
+	//MouseControl(HID_Buffer, &finangl, &finish.gyroData, 15, 0.04, 0.03 , 40, 120);// Function of mouse control
         
-        finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
-				finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
-				finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
-				//-------------------------------------------------------------------------        
-        finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
-				finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
-				finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
-        
-				checkStopStartCondition(&hdac, 140, &finish);
-				
-        Reorientation_by_quaternion (&finish.accelData);
-								
-        //--------------------------------------------------------------------------- 
-				float t;				
-				t = convertTempData(IntAccData.Temperature);// The value of temperature
-        //------------------------------GetAccelAngles-------------------------------------
-        accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
-        accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
-        accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
-       //------------------------------------------------------------------------
-				
-				if(switchMode == RemoteOFF ){
-					Wheelchair(ADC_data,&finangl, 13, 3);
-				}
-				HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
-				HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
-			  //MouseControl(HID_Buffer, &finangl, &finish.gyroData, 15, 0.04, 0.03 , 40, 120);// Function of mouse control
-        
-        }
-    } 
   /* USER CODE END TIM2_IRQn 1 */
 }
 
 /**
 * @brief This function handles TIM3 global interrupt.
 */
+
+float distance1=0, distance2=0;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	static struct RangingModule frontModule1 = {{GPIOA, GPIO_PIN_6, GPIO_PIN_RESET}, {TIM_CHANNEL_1, 0, 0}, 0.0};
-	static struct RangingModule frontModule2 = {{GPIOA, GPIO_PIN_7, GPIO_PIN_RESET}, {TIM_CHANNEL_2, 0, 0}, 0.0};
+	
 	
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
-	
 	distanceMeasurement(&htim3, &frontModule1);
 	distanceMeasurement(&htim3, &frontModule2);
 	distance1 = frontModule1.Distance;
 	distance2 = frontModule2.Distance;
+	
+	KalmanFilterSimple1D(frontModule1.Distance, &HC_SR04_Kf_Module1);
   /* USER CODE END TIM3_IRQn 1 */
 }
 
@@ -342,20 +348,15 @@ void TIM4_IRQHandler(void)
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
-		if (__HAL_TIM_GET_FLAG(&htim4, TIM_FLAG_UPDATE) != RESET) {
-			if (__HAL_TIM_GET_IT_SOURCE(&htim4, TIM_IT_UPDATE) != RESET) {
-				__HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE);
-		
-				//---------------------KalmanFilter-----------------------------------------------
-				KalmanFilterSimple1D(accelAngle.rotate.x,&Kalman.Kf_X);//filtered value 
-				KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z);
-				
-				//---------------------AnglesAfterAllFilter---------------------------------------
-				complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels
-				complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.98f, 0.005);// final angels
-				
-				}
-    } 
+
+	//---------------------KalmanFilter-----------------------------------------------
+	KalmanFilterSimple1D(accelAngle.rotate.x,&Kalman.Kf_X);//filtered value 
+	KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z);
+
+	//---------------------AnglesAfterAllFilter---------------------------------------
+	complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels
+	complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.98f, 0.005);// final angels
+
   /* USER CODE END TIM4_IRQn 1 */
 }
 

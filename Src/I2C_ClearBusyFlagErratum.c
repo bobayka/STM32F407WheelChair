@@ -118,3 +118,40 @@ myError I2C_ClearBusyFlagErratum(I2C_HandleTypeDef* handle, uint32_t timeout)
 		
 		return NewError(HAL_OK, "");
 }
+
+
+myError _I2cFailRecover(){
+    GPIO_InitTypeDef GPIO_InitStruct;
+    int i, nRetry=0;
+
+
+    // We can't assume bus state based on SDA and SCL state (we may be in a data or NAK bit so SCL=SDA=1)
+    // by setting SDA high and toggling SCL at least 10 time we ensure whatever agent and state
+    // all agent should end up seeing a "stop" and bus get back to an known idle i2c  bus state
+
+    // Enable I/O
+    __GPIOB_CLK_ENABLE();
+    HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin, GPIO_PIN_SET);
+    GPIO_InitStruct.Pin = I2C1_SCL_Pin|I2C1_SDA_Pin ;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(I2C1_SDA_GPIO_Port, &GPIO_InitStruct);
+    //TODO we could do this faster by not using HAL delay 1ms for clk timing
+    do{
+        for( i=0; i<10; i++){
+            HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_RESET);
+            HAL_Delay(1);
+            HAL_GPIO_WritePin(I2C1_SCL_GPIO_Port, I2C1_SCL_Pin, GPIO_PIN_SET);
+            HAL_Delay(1);
+        }
+//        if( HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == 0 ){
+//            static int RetryRecover;
+//            RetryRecover++;
+//        }
+    }while(HAL_GPIO_ReadPin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin) == 0 && nRetry++<7);
+		if(HAL_GPIO_ReadPin(I2C1_SDA_GPIO_Port, I2C1_SDA_Pin) == 0){
+			return NewError(HAL_TIMEOUT, "SDA pin cant be setted\r");
+		}
+		return NewError(HAL_OK, ""); 
+}
