@@ -158,13 +158,6 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-//	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,2085/1.07);
-//	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,2200/1.07);
-	
-
-//	TIM3->PSC = 1000;
-//	TIM3->ARR = 2500;
-
 	try_start_mpu(&huart1,&hi2c1);
 	char* msg = "MK connected\r";
 	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);

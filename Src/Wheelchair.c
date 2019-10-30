@@ -7,18 +7,8 @@ void stopWheelchair(DAC_HandleTypeDef* hdac){
 
 void Wheelchair( uint16_t* ADC_data, struct FinishAngle const* finangl, uint8_t angleMax, uint8_t angleMin){
   
-//    int8_t signZ, signX;    
 		float final_X_Angle = finangl->rotate.x;
 		float final_Z_Angle = finangl->rotate.z;
-	
-//   signZ = (int8_t) copysign(1, final_Z_Angle);
-//   signX = (int8_t) copysign(1, final_X_Angle);
-//    else if (gz>20 && final_Z_Angle>0){
-//      tickAct=HAL_GetTick();
-//    }    
-	// for parabola Wheelchair(ADC_data,&finangl, 15, 5, 3.6, 3.4);
-//      ADC_data[1]= 2085 + (int)(coefZ*(final_Z_Angle*final_Z_Angle*signZ + final_Z_Angle) );
-//      ADC_data[0]= 2200 + (int)(coefX*(final_X_Angle*final_X_Angle*signX + final_X_Angle) );
 		
 		ADC_data[1]= 2085;
 		ADC_data[0]= 2200;

@@ -59,13 +59,10 @@ uint8_t HID_Buffer[4];
 
 extern MPU6050_GYROResult    IntGyroData;
 extern MPU6050_ACCResult     IntAccData;
-extern MPU6050_MAGNETResult  IntMagnetData;
-extern MPU6050_StatusReg     Status;
-MPU6050_SensMAGNETResult MagnetSens;
 
 struct RangingModule frontModule1 = {{GPIOA, GPIO_PIN_6, GPIO_PIN_RESET}, {TIM_CHANNEL_1, 0, 0}, 0.0};
 struct RangingModule frontModule2 = {{GPIOA, GPIO_PIN_7, GPIO_PIN_RESET}, {TIM_CHANNEL_2, 0, 0}, 0.0};
-KalmanFilter HC_SR04_Kf_Module1;
+KalmanFilter HC_SR04_Kf_Module1 = {400, 0};
 	
 struct Kfilterforaxis Kalman = {0};// change on static
 struct FinishAngle finangl;
@@ -82,6 +79,13 @@ extern I2C_HandleTypeDef hi2c1;
 float convertAccData(int16_t acc);
 float convertGyroData(int16_t gyro);
 float convertTempData(int16_t temp);
+
+enum { 
+	OFF,
+	ON
+};
+
+uint8_t stopFlag = OFF;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -293,7 +297,7 @@ void TIM2_IRQHandler(void)
 	finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
 	finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
 
-	checkStopStartCondition(&hdac, 140, &finish);
+	checkStopStartCondition(140, &finish);
 
 	Reorientation_by_quaternion (&finish.accelData);
 					
@@ -306,11 +310,15 @@ void TIM2_IRQHandler(void)
 	accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
 	//------------------------------------------------------------------------
 
-	if(switchMode == RemoteOFF ){
-		Wheelchair(ADC_data,&finangl, 13, 3);
+	if(switchMode == RemoteOFF){
+		Wheelchair(ADC_data,&finangl, 13, 3);// add stopflag to this function
 	}
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
+//	if (stopFlag == OFF){
+		HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
+		HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
+//	}else{
+//		stopWheelchair(&hdac);				
+//	}
 	//MouseControl(HID_Buffer, &finangl, &finish.gyroData, 15, 0.04, 0.03 , 40, 120);// Function of mouse control
         
   /* USER CODE END TIM2_IRQn 1 */
@@ -319,12 +327,13 @@ void TIM2_IRQHandler(void)
 /**
 * @brief This function handles TIM3 global interrupt.
 */
-
-float distance1=0, distance2=0;
+float distance1, distance2;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	
+	static int stopStateCnt = 0;
+	static int startStateCnt = 0;
+
 	
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
@@ -333,8 +342,21 @@ void TIM3_IRQHandler(void)
 	distanceMeasurement(&htim3, &frontModule2);
 	distance1 = frontModule1.Distance;
 	distance2 = frontModule2.Distance;
+	KalmanFilterSimple1D(frontModule1.Distance, &HC_SR04_Kf_Module1, 30);
 	
-	KalmanFilterSimple1D(frontModule1.Distance, &HC_SR04_Kf_Module1);
+	if(HC_SR04_Kf_Module1.state < 200){
+		if (stopStateCnt > 3 ){
+			stopFlag = ON;
+		}
+		stopStateCnt++;
+		startStateCnt = 0;
+	}else{
+		if (startStateCnt > 5){
+			stopFlag = OFF;
+		}
+		startStateCnt++;
+		stopStateCnt = 0;
+	}
   /* USER CODE END TIM3_IRQn 1 */
 }
 
@@ -350,8 +372,8 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 1 */
 
 	//---------------------KalmanFilter-----------------------------------------------
-	KalmanFilterSimple1D(accelAngle.rotate.x,&Kalman.Kf_X);//filtered value 
-	KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z);
+	KalmanFilterSimple1D(accelAngle.rotate.x,&Kalman.Kf_X, 10);//filtered value 
+	KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z, 10);
 
 	//---------------------AnglesAfterAllFilter---------------------------------------
 	complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels

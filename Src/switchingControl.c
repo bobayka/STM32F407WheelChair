@@ -10,7 +10,7 @@
 extern int8_t switchMode;
 
 
-void checkStopStartCondition(DAC_HandleTypeDef* hdac,int16_t sensLEFT, struct Finish const *  finish){
+void checkStopStartCondition(int16_t sensLEFT, struct Finish const *  finish){
 
 	static uint32_t tickBut=0;
 	static uint64_t tickRunDevice = 0;
@@ -19,7 +19,6 @@ void checkStopStartCondition(DAC_HandleTypeDef* hdac,int16_t sensLEFT, struct Fi
 		tickBut = HAL_GetTick();
 		tickRunDevice = HAL_GetTick();
 		if(switchMode == RemoteON){
-			stopWheelchair(hdac);
 			state = IN;
 		}else{
 			switchMode = ~switchMode;
