@@ -10,7 +10,7 @@
 extern int8_t switchMode;
 
 
-void checkStopStartCondition(int16_t sensLEFT, struct Finish const *  finish){
+void checkSwitchingCondition(int16_t sensLEFT, struct Finish const *  finish){
 
 	static uint32_t tickBut=0;
 	static uint64_t tickRunDevice = 0;

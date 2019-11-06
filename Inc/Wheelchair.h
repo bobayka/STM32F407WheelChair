@@ -7,4 +7,5 @@
 void Wheelchair( uint16_t* ADC_data, struct FinishAngle const* finangl, uint8_t angleMax, uint8_t angleMin);
 void stopWheelchair(DAC_HandleTypeDef* hdac);
 
+extern float StopKoef;	
 #endif

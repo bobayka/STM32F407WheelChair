@@ -62,7 +62,7 @@ extern MPU6050_ACCResult     IntAccData;
 
 struct RangingModule frontModule1 = {{GPIOA, GPIO_PIN_6, GPIO_PIN_RESET}, {TIM_CHANNEL_1, 0, 0}, 0.0};
 struct RangingModule frontModule2 = {{GPIOA, GPIO_PIN_7, GPIO_PIN_RESET}, {TIM_CHANNEL_2, 0, 0}, 0.0};
-KalmanFilter HC_SR04_Kf_Module1 = {400, 0};
+KalmanFilter HC_SR04_Kf_Module1;
 	
 struct Kfilterforaxis Kalman = {0};// change on static
 struct FinishAngle finangl;
@@ -84,8 +84,12 @@ enum {
 	OFF,
 	ON
 };
+typedef struct{
+uint8_t distStopFlag; 
+uint8_t errorStopFlag;
+} StopFlags;
 
-uint8_t stopFlag = OFF;
+StopFlags stopFlags = {OFF, OFF};
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -95,6 +99,7 @@ extern ADC_HandleTypeDef hadc3;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim5;
 
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
@@ -274,51 +279,46 @@ void ADC_IRQHandler(void)
 void TIM2_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM2_IRQn 0 */
-
+	stopFlags.errorStopFlag = OFF;
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
 	GetRawGyro(&IntGyroData);// Get three projections of the gyroscope
 	int status = GetRawAcc(&IntAccData);
 	if (status != HAL_OK){
-		stopWheelchair(&hdac);				
+		stopFlags.errorStopFlag = ON;
 		myError err = I2CErrorHandling(&hi2c1, status);
 		err = Wrap(err, "I2CErrorHandling: "); 
 		HAL_UART_Transmit(&huart1, (uint8_t*)err.msg.msg, err.msg.size, HAL_MAX_DELAY);
-		return;
+	}else{
+		// learn reset interrupt
+
+		finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
+		finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
+		finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
+		//-------------------------------------------------------------------------        
+		finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
+		finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
+		finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
+
+		checkSwitchingCondition(140, &finish);
+
+		Reorientation_by_quaternion (&finish.accelData);
+						
+		//--------------------------------------------------------------------------- 
+		float t;				
+		t = convertTempData(IntAccData.Temperature);// The value of temperature
+		//------------------------------GetAccelAngles-------------------------------------
+		accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
+		accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
+		accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
+		//------------------------------------------------------------------------
 	}
-	// learn reset interrupt
-
-	finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
-	finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
-	finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
-	//-------------------------------------------------------------------------        
-	finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
-	finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
-	finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
-
-	checkStopStartCondition(140, &finish);
-
-	Reorientation_by_quaternion (&finish.accelData);
-					
-	//--------------------------------------------------------------------------- 
-	float t;				
-	t = convertTempData(IntAccData.Temperature);// The value of temperature
-	//------------------------------GetAccelAngles-------------------------------------
-	accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
-	accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
-	accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
-	//------------------------------------------------------------------------
-
 	if(switchMode == RemoteOFF){
 		Wheelchair(ADC_data,&finangl, 13, 3);// add stopflag to this function
 	}
-//	if (stopFlag == OFF){
-		HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
-		HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
-//	}else{
-//		stopWheelchair(&hdac);				
-//	}
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
 	//MouseControl(HID_Buffer, &finangl, &finish.gyroData, 15, 0.04, 0.03 , 40, 120);// Function of mouse control
         
   /* USER CODE END TIM2_IRQn 1 */
@@ -327,7 +327,7 @@ void TIM2_IRQHandler(void)
 /**
 * @brief This function handles TIM3 global interrupt.
 */
-float distance1, distance2;
+float distance1 , distance2;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
@@ -346,13 +346,13 @@ void TIM3_IRQHandler(void)
 	
 	if(HC_SR04_Kf_Module1.state < 200){
 		if (stopStateCnt > 3 ){
-			stopFlag = ON;
+			stopFlags.distStopFlag = ON;
 		}
 		stopStateCnt++;
 		startStateCnt = 0;
 	}else{
 		if (startStateCnt > 5){
-			stopFlag = OFF;
+			stopFlags.distStopFlag = OFF;
 		}
 		startStateCnt++;
 		stopStateCnt = 0;
@@ -376,10 +376,27 @@ void TIM4_IRQHandler(void)
 	KalmanFilterSimple1D(accelAngle.rotate.z,&Kalman.Kf_Z, 10);
 
 	//---------------------AnglesAfterAllFilter---------------------------------------
-	complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.98f, 0.005);// final angels
-	complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.98f, 0.005);// final angels
+	complimentaryfilter(&finangl.rotate.x, finish.gyroData.x, &Kalman.Kf_X.state, 0.99f, 0.005);// final angels
+	complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.99f, 0.005);// final angels
 
   /* USER CODE END TIM4_IRQn 1 */
+}
+
+/**
+* @brief This function handles TIM5 global interrupt.
+*/
+void TIM5_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM5_IRQn 0 */
+	static int counter = 0;
+  /* USER CODE END TIM5_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim5);
+  /* USER CODE BEGIN TIM5_IRQn 1 */
+	counter += (stopFlags.distStopFlag == ON||stopFlags.errorStopFlag)? 1: -1;
+	counter = (counter > 50)? 50 : counter;
+	counter = (counter < 0)? 0 : counter;
+	StopKoef = 1 - counter * 0.02;
+  /* USER CODE END TIM5_IRQn 1 */
 }
 
 /**
