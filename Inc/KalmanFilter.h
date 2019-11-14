@@ -14,9 +14,8 @@ struct Kfilterforaxis{
 	KalmanFilter Kf_X;
 	KalmanFilter Kf_Y;
 	KalmanFilter Kf_Z;
-	KalmanFilter Kf_Magn;
 };
 
 
-void KalmanFilterSimple1D(float const data,KalmanFilter* kalman); //r - ковариация шума измерений
+void KalmanFilterSimple1D(float const data,KalmanFilter* kalman, int r); //r - ковариация шума измерений
 #endif

@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -68,12 +68,9 @@
 
 /* USER CODE BEGIN Private defines */
 #define Pi 3.14159265358979323846f
-
-
-
-//#define ALPHA  0.9f//0,96
-//#define dt      0.001f
-
+#define TIM2_freq	50hz
+#define TIM3_tim	60ms
+#define TIM4_freq 200hz
 
 struct Accel
 {

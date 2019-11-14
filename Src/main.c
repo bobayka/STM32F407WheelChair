@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -54,13 +54,11 @@
 /* USER CODE BEGIN Includes */
 #include "MPU6050.h"
 #include "I2C_ClearBusyFlagErratum.h"
-
+#define PWMPULSE 10
 
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart1;
-
 ADC_HandleTypeDef hadc1;
 ADC_HandleTypeDef hadc3;
 
@@ -71,8 +69,10 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim5;
 
-int8_t switchMode = 0;
+UART_HandleTypeDef huart1;
+
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 MPU6050_GYROResult    IntGyroData;
@@ -92,15 +92,17 @@ static void MX_ADC3_Init(void);
 static void MX_DAC_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
-//static void GPIO_reset(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
-static void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
+static void MX_TIM5_Init(void);
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
+
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-
+int8_t switchMode = 0;
 /* USER CODE END 0 */
 
 /**
@@ -108,7 +110,6 @@ static void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
   *
   * @retval None
   */
-extern	uint16_t ADC_data[2];
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -141,35 +142,26 @@ int main(void)
   MX_ADC3_Init();
   MX_DAC_Init();
   MX_TIM4_Init();
-	MX_USART1_UART_Init();
+  MX_USART1_UART_Init();
+  MX_TIM5_Init();
+  /* USER CODE BEGIN 2 */
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_3);
+	__HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, PWMPULSE);
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
-	
-	HAL_TIM_Base_Start(&htim3);
 	HAL_DAC_Start(&hdac , DAC_CHANNEL_1);
 	HAL_DAC_Start(&hdac , DAC_CHANNEL_2);
-	HAL_ADC_Start(&hadc1); 
-  HAL_ADC_Start(&hadc3); 
-  /* USER CODE BEGIN 2 */
+	HAL_ADC_Start_IT(&hadc1);
+	HAL_ADC_Start_IT(&hadc3);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//		while	(ADC_data[0] < 2000){
 
-//			ADC_data[0] = HAL_ADC_GetValue(&hadc1);//какое напряжение шаклы??
-//			ADC_data[1] = HAL_ADC_GetValue(&hadc3);
-//		}
-
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,2085/1.07);
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,2200/1.07);
-	
-
-	HAL_Delay(2000);
-	TIM3->PSC = 1000;
-	TIM3->ARR = 2500;
-
-	MPU_Start(GPIOC, GPIO_PIN_0);
+	try_start_mpu(&huart1,&hi2c1);
 	char* msg = "MK connected\r";
 	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	HAL_TIM_Base_Start_IT(&htim2);
@@ -178,9 +170,8 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim4);
 	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_UPDATE);	
 
-
-	
-
+	HAL_TIM_Base_Start_IT(&htim5);
+	__HAL_TIM_ENABLE_IT(&htim5, TIM_IT_UPDATE);
 	switchMode = RemoteON;
   while (1)
   {
@@ -198,26 +189,6 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-
-static void MX_USART1_UART_Init(void)
-{
-
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 38400;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-		SET_BIT(huart1.Instance->CR1, USART_CR1_RXNEIE);
-}
-
-
 void SystemClock_Config(void)
 {
 
@@ -237,9 +208,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 144;
+  RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 6;
+  RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -254,7 +225,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -280,7 +251,7 @@ static void MX_ADC1_Init(void)
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -301,7 +272,6 @@ static void MX_ADC1_Init(void)
   sConfig.Channel = ADC_CHANNEL_7;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-	ADC1->CR1 |= ADC_CR1_EOCIE;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -318,7 +288,7 @@ static void MX_ADC3_Init(void)
     /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
     */
   hadc3.Instance = ADC3;
-  hadc3.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc3.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc3.Init.Resolution = ADC_RESOLUTION_12B;
   hadc3.Init.ScanConvMode = DISABLE;
   hadc3.Init.ContinuousConvMode = DISABLE;
@@ -339,7 +309,6 @@ static void MX_ADC3_Init(void)
   sConfig.Channel = ADC_CHANNEL_3;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-	ADC3->CR1 |= ADC_CR1_EOCIE;
   if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -400,16 +369,16 @@ static void MX_I2C1_Init(void)
 }
 
 /* TIM2 init function */
-static void MX_TIM2_Init(void)//APB1 72Mhz  50Hz
+static void MX_TIM2_Init(void)
 {
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1000-1;
+  htim2.Init.Prescaler = 84;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1439;
+  htim2.Init.Period = 20000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
@@ -432,16 +401,18 @@ static void MX_TIM2_Init(void)//APB1 72Mhz  50Hz
 }
 
 /* TIM3 init function */
-static void MX_TIM3_Init(void)//APB172MHz
-{															// = 30Hz
+static void MX_TIM3_Init(void)
+{
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_IC_InitTypeDef sConfigIC;
+  TIM_OC_InitTypeDef sConfigOC;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 2400;
+  htim3.Init.Prescaler = 84;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 999;
+  htim3.Init.Period = 60000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
@@ -454,6 +425,16 @@ static void MX_TIM3_Init(void)//APB172MHz
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  if (HAL_TIM_IC_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
@@ -461,19 +442,49 @@ static void MX_TIM3_Init(void)//APB172MHz
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
+  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+  sConfigIC.ICFilter = 0;
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim3);
+
 }
 
 /* TIM4 init function */
-static void MX_TIM4_Init(void)// 200 Mhz
+static void MX_TIM4_Init(void)
 {
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 360;
+  htim4.Init.Prescaler = 84;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 999;
+  htim4.Init.Period = 5000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
   {
@@ -495,6 +506,57 @@ static void MX_TIM4_Init(void)// 200 Mhz
 
 }
 
+/* TIM5 init function */
+static void MX_TIM5_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 84;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 20000;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* USART1 init function */
+static void MX_USART1_UART_Init(void)
+{
+
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 38400;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
 /** Configure pins as 
         * Analog 
         * Input 
@@ -508,7 +570,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct;
 
   /* GPIO Ports Clock Enable */
-	__HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -516,12 +577,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
-	
-	  /*Configure GPIO pin : PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PC0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -551,29 +607,6 @@ void _Error_Handler(char *file, int line)
   /* USER CODE END Error_Handler_Debug */
 }
 
-void GPIO_reset(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
-		HAL_GPIO_WritePin(GPIOx, GPIO_Pin,GPIO_PIN_RESET);
-		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET); 
-		HAL_Delay(200);
-}
-int error1;
-void MPU_Start(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin){
-	HAL_GPIO_WritePin(GPIOx,GPIO_Pin , GPIO_PIN_SET);
-	HAL_Delay(100);
-	while(Initialize() != HAL_OK) {
-	myError er = I2C_ClearBusyFlagErratum(&hi2c1, 100);
-		if (er.error != HAL_OK){
-			er = Wrap(er, "cant clear BusyFlag:"); 
-			HAL_UART_Transmit(&huart1, er.msg.msg, strlen(er.msg.msg), HAL_MAX_DELAY);
-			free(er.msg.msg);
-			return;	
-		}
-		char* msg = "mpu doesnt connect\r";
-		HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-		HAL_Delay(300);
-	}
-}
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number

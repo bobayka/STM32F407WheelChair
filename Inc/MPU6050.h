@@ -4,7 +4,6 @@
 #include "stm32f4xx_hal.h"
 #include "stdint.h"
 
-extern I2C_HandleTypeDef hi2c1;
 
 #define MPU6050_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
 #define MPU6050_ADDRESS_AD0_HIGH    0x69 // address pin high (VCC)
@@ -435,6 +434,6 @@ HAL_StatusTypeDef WriteBits(uint8_t slaveAddr, uint8_t regAddr,
 		uint8_t bitStart, uint8_t length, uint8_t data);
 HAL_StatusTypeDef SetBandwidthAccel(uint8_t source);
 HAL_StatusTypeDef SetBandwidthGyro(uint8_t source);
-
+void try_start_mpu(UART_HandleTypeDef *huart, I2C_HandleTypeDef *hi2c);
 #endif /* __MPU6050_H */
 

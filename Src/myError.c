@@ -36,7 +36,7 @@ myError Wrap (myError err, char* msg){ // after wrap can be free free result!!!
 myError I2CErrorHandling(I2C_HandleTypeDef* hi2c,HAL_StatusTypeDef status){
 	
 			if ( status == HAL_BUSY){// Get three projections of the accelerometer	
-				myError er = I2C_ClearBusyFlagErratum(hi2c, 50);
+				myError er = I2C_ClearBusyFlagErratum(hi2c, 30);
 				if (er.error != HAL_OK){
 					RestartI2C1(hi2c);
 					return Wrap(er, "cant clear BusyFlag:"); 					

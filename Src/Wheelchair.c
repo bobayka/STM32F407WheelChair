@@ -1,4 +1,5 @@
 #include "Wheelchair.h"
+float StopKoef  = 0;
 
 void stopWheelchair(DAC_HandleTypeDef* hdac){
 	HAL_DAC_SetValue(hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2085/1.07);
@@ -6,45 +7,41 @@ void stopWheelchair(DAC_HandleTypeDef* hdac){
 }
 
 void Wheelchair( uint16_t* ADC_data, struct FinishAngle const* finangl, uint8_t angleMax, uint8_t angleMin){
-  
-//    int8_t signZ, signX;    
 		float final_X_Angle = finangl->rotate.x;
 		float final_Z_Angle = finangl->rotate.z;
-	
-//   signZ = (int8_t) copysign(1, final_Z_Angle);
-//   signX = (int8_t) copysign(1, final_X_Angle);
-//    else if (gz>20 && final_Z_Angle>0){
-//      tickAct=HAL_GetTick();
-//    }    
-	// for parabola Wheelchair(ADC_data,&finangl, 15, 5, 3.6, 3.4);
-//      ADC_data[1]= 2085 + (int)(coefZ*(final_Z_Angle*final_Z_Angle*signZ + final_Z_Angle) );
-//      ADC_data[0]= 2200 + (int)(coefX*(final_X_Angle*final_X_Angle*signX + final_X_Angle) );
+		uint8_t subMaxMin = angleMax - angleMin;
+		float abs_fin_z_angle = fabsf(final_Z_Angle);
+		float abs_fin_x_angle = fabsf(final_X_Angle);
+
+		float subZ;
+		if (abs_fin_z_angle > angleMax)
+			subZ = subMaxMin;
+		else if (abs_fin_z_angle > angleMin)
+			subZ = abs_fin_z_angle - angleMin;
+		else
+			subZ = 0;
 		
-		ADC_data[1]= 2085;
-		ADC_data[0]= 2200;
+		
+		float subX;
+		if (abs_fin_x_angle > angleMax)
+			subX = subMaxMin;
+		else if (abs_fin_x_angle > angleMin)
+			subX = abs_fin_x_angle - angleMin;
+    else
+			subX = 0;
+		
 		if (finangl->rotate.z > 0){
-			if (fabsf(final_Z_Angle)> angleMin)
-				ADC_data[1]= 2085 + (int)( 82 * (fabsf(final_Z_Angle) - angleMin));
-			if (fabsf(final_Z_Angle)>angleMax)
-				ADC_data[1]= 2085 + (int)( 82 * (angleMax - angleMin));
-			}
+			ADC_data[1]= 2085 + (int)( 82 * subZ) * StopKoef ;
+		}
 		else{
-			if (fabsf(final_Z_Angle)> angleMin)
-			ADC_data[1]= 2085 - (int)( 71 * (fabsf(final_Z_Angle) - angleMin));
-			if (fabsf(final_Z_Angle)>angleMax)
-				ADC_data[1]= 2085 - (int)( 71 * (angleMax - angleMin));
+			ADC_data[1]= 2085 - (int)( 71 * subZ);
 		}
 		if (finangl->rotate.x > 0){
-      if (fabsf(final_X_Angle)>angleMin)
-        ADC_data[0]= 2200 + (int)( 99 * (fabsf(final_X_Angle) - angleMin));
-      if (fabsf(final_X_Angle)>angleMax)
-        ADC_data[0]= 2200 + (int)( 99 * (angleMax - angleMin));
+
+			ADC_data[0]= 2200 + (int)( 99 * subX);
 		}
     else {
-		  if (fabsf(final_X_Angle)>angleMin)
-        ADC_data[0]= 2200 - (int)( 62 * (fabsf(final_X_Angle) - angleMin));
-      if (fabsf(final_X_Angle)>angleMax)
-        ADC_data[0]= 2200 - (int)( 62 * (angleMax - angleMin));
+      ADC_data[0]= 2200 - (int)( 62 * subX);
 		}
    
 }
