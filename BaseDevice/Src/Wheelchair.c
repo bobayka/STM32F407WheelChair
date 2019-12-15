@@ -40,8 +40,8 @@ void Wheelchair( uint16_t* ADC_data, struct FinishAngle const* finangl, uint8_t 
 
 			ADC_data[0]= 2200 + (int)( 99 * subX);
 		}
-    else {
-      ADC_data[0]= 2200 - (int)( 62 * subX);
-		}
+        else {
+            ADC_data[0]= 2200 - (int)( 62 * subX);
+        }
    
 }

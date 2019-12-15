@@ -46,7 +46,6 @@
 #include "Heading.h"
 //#include "MouseControl.h"
 #include "Wheelchair.h"
-#include "RestartI2C1.h"
 #include "switchingControl.h"
 #include "HC-SR04.h"
 
@@ -74,6 +73,8 @@ float convertAccData(int16_t acc);
 float convertGyroData(int16_t gyro);
 float convertTempData(int16_t temp);
 
+float distance1 = 0, distance2 = 0;
+
 enum { 
 	OFF,
 	ON
@@ -84,6 +85,12 @@ uint8_t errorStopFlag;
 } StopFlags;
 
 StopFlags stopFlags = {OFF, OFF};
+
+#define GYRO_ACCEL_DATA_SIZE  19
+#define BUFFER_DATA_SIZE 100
+uint8_t gyro_accel_data[GYRO_ACCEL_DATA_SIZE];
+uint8_t buffer[BUFFER_DATA_SIZE];
+uint8_t error_buffer[BUFFER_DATA_SIZE];
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -94,6 +101,7 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
+extern UART_HandleTypeDef huart1;
 
 /******************************************************************************/
 /*            Cortex-M4 Processor Interruption and Exception Handlers         */ 
@@ -277,37 +285,35 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-	if (status != HAL_OK){
+    
+	if (*error_buffer){
 		stopFlags.errorStopFlag = ON;
 	}else{
 		// learn reset interrupt
 
-		finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
-		finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
-		finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
-		//-------------------------------------------------------------------------        
-		finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
-		finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
-		finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
+//		finish.gyroData.x = convertGyroData(IntGyroData.Gyro_X) - 0.197288513f;// It's raw data without calibration factors
+//		finish.gyroData.y = convertGyroData(IntGyroData.Gyro_Y) - 0.118911743f;// You can get these coefficients in previous versions of the program
+//		finish.gyroData.z = -(convertGyroData(IntGyroData.Gyro_Z) - 0.557388306f);
+//		//-------------------------------------------------------------------------        
+//		finish.accelData.x = convertAccData(IntAccData.Accel_X) - 0.0123291016f;// It's raw data without calibration factors
+//		finish.accelData.y = convertAccData(IntAccData.Accel_Y) - 0.0107421875f;// You can get these coefficients in previous versions of the program 
+//		finish.accelData.z = convertAccData(IntAccData.Accel_Z) - 0.0264587402f;        
 
-		checkSwitchingCondition(140, &finish);
+//		checkSwitchingCondition(140, &finish);
 
-		Reorientation_by_quaternion (&finish.accelData);
-						
-		//--------------------------------------------------------------------------- 
-		float t;				
-		t = convertTempData(IntAccData.Temperature);// The value of temperature
-		//------------------------------GetAccelAngles-------------------------------------
-		accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
-		accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
-		accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
-		//------------------------------------------------------------------------
+//		Reorientation_by_quaternion (&finish.accelData);
+//						
+//		//------------------------------GetAccelAngles-------------------------------------
+//		accelAngle.rotate.x = get_X_Rotation(&finish.accelData);// Angles of the accel
+//		accelAngle.rotate.y = get_Y_Rotation(&finish.accelData);
+//		accelAngle.rotate.z = get_Z_Rotation(&finish.accelData);
+//		//------------------------------------------------------------------------
 	}
-	if(switchMode == RemoteOFF){
-		Wheelchair(ADC_data,&finangl, 13, 3);// add stopflag to this function
-	}
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
-	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
+//	if(switchMode == RemoteOFF){
+//		Wheelchair(ADC_data,&finangl, 13, 3);// add stopflag to this function
+//	}
+//	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,ADC_data[1]/1.07);
+//	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_2,DAC_ALIGN_12B_R,ADC_data[0]/1.07);
 	//MouseControl(HID_Buffer, &finangl, &finish.gyroData, 15, 0.04, 0.03 , 40, 120);// Function of mouse control
         
   /* USER CODE END TIM2_IRQn 1 */
@@ -316,7 +322,6 @@ void TIM2_IRQHandler(void)
 /**
 * @brief This function handles TIM3 global interrupt.
 */
-float distance1 , distance2;
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
@@ -369,6 +374,55 @@ void TIM4_IRQHandler(void)
 	complimentaryfilter(&finangl.rotate.z, finish.gyroData.z, &Kalman.Kf_Z.state, 0.99f, 0.005);// final angels
 
   /* USER CODE END TIM4_IRQn 1 */
+}
+
+/**
+* @brief This function handles USART1 global interrupt.
+*/
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+    static uint8_t* currentBuffer = gyro_accel_data;
+    static uint8_t rx_counter = 0;
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+    if(huart1.Instance!=USART1){
+        return;
+    }
+    
+    buffer[rx_counter] = huart1.Instance->DR;
+    if (buffer[0] != ':'){
+        currentBuffer = error_buffer;
+    }
+    else{
+        currentBuffer = gyro_accel_data;
+    }
+    if (rx_counter > sizeof(buffer)){
+        //printf("Can't find "\r" symbol in message")
+        memset(buffer, 0, sizeof(buffer));
+        rx_counter = 0;
+        return;
+    }
+    if(buffer[rx_counter] == '\r'){
+        if (*error_buffer){
+            memset(error_buffer, 0, sizeof(error_buffer));
+        }
+        if (*gyro_accel_data){
+            memset(gyro_accel_data, 0, sizeof(gyro_accel_data));
+        }
+        if (((currentBuffer == gyro_accel_data) && (rx_counter == GYRO_ACCEL_DATA_SIZE))||
+            (currentBuffer == error_buffer))
+        {
+            memcpy (currentBuffer, buffer, rx_counter);
+        }
+        memset(buffer, 0, sizeof(buffer));
+        rx_counter = 0;
+        return;
+    }
+    rx_counter++;
+    
+  /* USER CODE END USART1_IRQn 1 */
 }
 
 /**
